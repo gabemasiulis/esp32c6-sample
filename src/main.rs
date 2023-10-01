@@ -67,7 +67,7 @@ fn main() {
 
 
     let mut led = rgb_led::WS2812RMT::new(peripherals.pins.gpio8, peripherals.rmt.channel0).unwrap();
-    led.set_pixel(rgb_led::RGB8::new(5, 5, 50));
+    led.set_pixel(rgb_led::RGB8::new(5, 50, 5));
 
     let app_config = config::CONFIG;
     println!("SSID: {}, PSK: {}", app_config.wifi_ssid, app_config.wifi_psk);
