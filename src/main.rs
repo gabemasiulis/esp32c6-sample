@@ -78,6 +78,22 @@ fn main() {
             return;
         } 
     };
+    let i2c_config = I2cConfig::new().baudrate(100.kHz().into());
+    let i2c_driver = I2cDriver::new(peripherals.i2c0, peripherals.pins.gpio5, peripherals.pins.gpio4, &i2c_config).unwrap();
+    let display_interface = I2CDisplayInterface::new(i2c_driver);
+
+    let mut display = Ssd1306::new(display_interface, DisplaySize128x64, DisplayRotation::Rotate0)
+        .into_buffered_graphics_mode();
+
+    display.init().expect("Initialize the display");
+    // display.clear().expect("Clear the display");
+    let text_style = MonoTextStyleBuilder::new()
+        .font(&FONT_6X10)
+        .text_color(BinaryColor::On)
+        .build();
+    Text::with_baseline("Hello World!", Point::zero(), text_style, Baseline::Top)
+        .draw(&mut display).expect("Write to screen");
+
     let sysloop = match EspSystemEventLoop::take(){
         Ok(sysloop) => sysloop,
         Err(_) => {return}
