@@ -1,8 +1,33 @@
 use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_hal::peripherals::Peripherals;
+use esp_idf_hal::{
+    peripherals::Peripherals,
+    i2c::*,
+    ledc,
+    prelude::*
+};
 
-use esp_idf_svc::http::client::{Configuration, EspHttpConnection};
+use esp_idf_svc::{
+    nvs::EspDefaultNvsPartition,
+    http::client::{Configuration, EspHttpConnection},
+};
+use ssd1306::{
+    prelude::*,
+    I2CDisplayInterface,
+    Ssd1306
+};
+use embedded_graphics::{
+    mono_font::{
+        ascii::FONT_6X10,
+        MonoTextStyleBuilder
+    },
+    pixelcolor::{self, BinaryColor},
+    prelude::*,
+    text::{
+        Baseline,
+        Text
+    }
+};
 
 use embedded_svc::http::client::Client as HttpClient;
 use embedded_svc::http::Method;
@@ -60,7 +85,7 @@ fn main() {
 
 
     let mut led = rgb_led::WS2812RMT::new(peripherals.pins.gpio8, peripherals.rmt.channel0).unwrap();
-    led.set_pixel(rgb_led::RGB8::new(5, 50, 5)).expect("set the led to green");
+    led.set_pixel(rgb_led::RGB8::new(50, 5, 5)).expect("set the led to red");
 
     let app_config = config::CONFIG;
     println!("SSID: {}, PSK: {}", app_config.wifi_ssid, app_config.wifi_psk);

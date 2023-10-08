@@ -4,7 +4,6 @@ use embedded_svc::wifi::{
 };
 use esp_idf_hal::peripheral;
 use esp_idf_svc::{eventloop::EspSystemEventLoop, wifi::BlockingWifi, wifi::EspWifi};
-use log::info;
 
 pub fn wifi(
     ssid: &str,
@@ -45,7 +44,7 @@ pub fn wifi(
         );
         Some(ours.channel)
     } else {
-        info!(
+        println!(
             "Configured access point {} not found during scanning, will go with unknown channel",
             ssid
         );
