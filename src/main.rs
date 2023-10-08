@@ -103,7 +103,7 @@ fn main() {
         Some(x) => x,
         None => {
             return;
-        } 
+        }
     };
     let mut led = rgb_led::WS2812RMT::new(peripherals.pins.gpio8, peripherals.rmt.channel0).unwrap();
     led.set_pixel(rgb_led::RGB8::new(20, 20, 0)).expect("set the led to yellow");
@@ -155,14 +155,17 @@ fn main() {
         .unwrap();
     epd_driver.clear_frame(&mut driver, &mut delay).unwrap();
 
-    let mut line_index: i32 = 0;
+    // let mut line_index: i32 = 0;
 
     let message = ["Never", "Gonna", "Give", "You", "Up", "Never", "Gonna", "Let", "You", "Down", "Never", "Gonna", "Run", "Around", "You", "And", "Desert", "You"];
-    for word in message {
-        (line_index, epd_driver, driver) = append_log(word, line_index, &mut display, epd_driver, driver, delay);
+    for (line_index, word) in message.iter().enumerate() {
+        append_log(word, line_index as i32, &mut display, &mut epd_driver, &mut driver, &mut delay);
     }
     
-    (line_index, epd_driver, driver) = append_log("Finished tests - going to sleep", line_index, &mut display, epd_driver, driver, delay);
+    append_log(
+        "Finished tests - going to sleep", message.len() as i32, &mut display,
+        &mut epd_driver, &mut driver, &mut delay
+    );
     led.set_pixel(rgb_led::RGB8::new(0, 50, 0)).expect("set the led to green");
     
     Ets::delay_ms(2000);
@@ -202,7 +205,7 @@ fn main() {
     epd_driver.sleep(&mut driver, &mut delay).expect("putting display driver to sleep");
 }
 
-fn append_log(new_message: &str, mut line_index: i32, mut display: &mut Display2in13, mut epd_driver: EpdDriver, mut driver: SPI, mut delay:Delay) -> (i32, EpdDriver, SPI) {
+fn append_log(new_message: &str, line_index: i32, display: &mut Display2in13, epd_driver: &mut EpdDriver, driver: &mut SPI, delay:&mut Delay) {
     if line_index == 0 {
         // clear the screen, gently?
         display.clear(Color::Black).ok();
@@ -214,15 +217,15 @@ fn append_log(new_message: &str, mut line_index: i32, mut display: &mut Display2
     let new_message_with_whitespace = new_message.to_owned() + whitespace.repeat(num_spaces).as_str();
 
     // do a partial screen refresh of a single line of code
-    draw_text(&mut display, new_message_with_whitespace.as_str(), 5, 10 + (line_index * 10));
-    line_index = line_index + 1;
+    draw_text(display, new_message_with_whitespace.as_str(), 5, 10 + (line_index * 10) as i32);
+
     epd_driver
-        .update_and_display_frame(&mut driver, display.buffer(), &mut delay)
+        .update_and_display_frame(driver, display.buffer(), delay)
         .expect("display frame new graphics");
-    if line_index == 10 {
-        line_index = 0;
-    }
-    (line_index, epd_driver, driver)
+    // if line_index == 10 {
+    //     line_index = 0;
+    // }
+    // ( epd_driver, driver)
 } 
 
 fn draw_text(display: &mut Display2in13, text: &str, x: i32, y: i32) {
