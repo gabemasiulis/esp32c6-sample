@@ -4,10 +4,10 @@ use esp_idf_hal::{
     peripherals::Peripherals,
     // i2c::*,
     // ledc,
-    spi,
+    spi::{self, SpiDeviceDriver},
     spi::{
         // SpiDeviceDriver,
-        // SpiDriver,
+        SpiDriver,
         SpiDriverConfig,
     },
     delay::Ets,
@@ -45,7 +45,6 @@ use embedded_graphics::{
         Text,
         TextStyleBuilder
     },
-    primitives::{Circle, Line, PrimitiveStyle}
 };
 
 use embedded_svc::http::client::Client as HttpClient;
@@ -81,6 +80,17 @@ fn post_test(client: &mut HttpClient<EspHttpConnection>, url: &str) {
     println!("Response status: {status}");
 
 }
+type SPI = SpiDeviceDriver<
+    'static,
+    SpiDriver<'static>>;
+
+type EpdDriver = Epd2in13<
+    SPI,
+    PinDriver<'static, gpio::Gpio4, gpio::Output>,
+    PinDriver<'static, gpio::Gpio9, gpio::Input>,
+    PinDriver<'static, gpio::Gpio5, gpio::Output>,
+    PinDriver<'static, gpio::Gpio6, gpio::Output>,
+    Delay>;
 
 fn main() {
     // It is necessary to call this function once. Otherwise some patches to the runtime
@@ -89,14 +99,14 @@ fn main() {
     // Bind the log crate to the ESP Logging facilities
     // esp_idf_svc::log::EspLogger::initialize_default();
 
-    // info!("Hello, world!");
-    println!("Hello world!");
     let peripherals = match Peripherals::take() {
         Some(x) => x,
         None => {
             return;
         } 
     };
+    let mut led = rgb_led::WS2812RMT::new(peripherals.pins.gpio8, peripherals.rmt.channel0).unwrap();
+    led.set_pixel(rgb_led::RGB8::new(20, 20, 0)).expect("set the led to yellow");
     let spi_p = peripherals.spi2;
     let sclk = peripherals.pins.gpio20; // SCK
     let sdo = peripherals.pins.gpio18; // MOSI
@@ -135,62 +145,8 @@ fn main() {
         None
     ).unwrap();
     let mut display = Display2in13::default();
-    // display.set_rotation(DisplayRotation::Rotate0);
-    // draw_text(&mut display, "Rotate 0!", 0, 0);
-
-    // display.set_rotation(DisplayRotation::Rotate90);
-    // draw_text(&mut display, "Rotate 90!", 5, 50);
-
-    // display.set_rotation(DisplayRotation::Rotate180);
-    // draw_text(&mut display, "Rotate 180!", 5, 50);
 
     display.set_rotation(DisplayRotation::Rotate270);
-    draw_text(&mut display, "Rotate 270!", 5, 10);
-
-    epd_driver.update_frame(&mut driver, display.buffer(), &mut delay)
-        .expect("have updated the frame buffer");
-    epd_driver.display_frame(&mut driver, &mut delay)
-        .expect("display frame new graphics");
-
-    // Ets::delay_ms(1000);
-
-    draw_text(&mut display, "A second line of text!", 5, 20);
-    epd_driver.display_frame(&mut driver, &mut delay)
-        .expect("display frame new graphics");
-
-    display.clear(Color::White).ok();
-
-    // draw a analog clock
-    let _ = Circle::with_center(Point::new(64, 64), 80)
-        .into_styled(PrimitiveStyle::with_stroke(Color::Black, 1))
-        .draw(&mut display);
-    let _ = Line::new(Point::new(64, 64), Point::new(30, 40))
-        .into_styled(PrimitiveStyle::with_stroke(Color::Black, 4))
-        .draw(&mut display);
-    let _ = Line::new(Point::new(64, 64), Point::new(80, 40))
-        .into_styled(PrimitiveStyle::with_stroke(Color::Black, 1))
-        .draw(&mut display);
-
-    // draw white on black background
-    let style = MonoTextStyleBuilder::new()
-        .font(&embedded_graphics::mono_font::ascii::FONT_6X10)
-        .text_color(Color::White)
-        .background_color(Color::Black)
-        .build();
-    let text_style = TextStyleBuilder::new().baseline(Baseline::Top).build();
-
-    let _ = Text::with_text_style("It's working-WoB!", Point::new(90, 10), style, text_style)
-        .draw(&mut display);
-
-    // use bigger/different font
-    let style = MonoTextStyleBuilder::new()
-        .font(&embedded_graphics::mono_font::ascii::FONT_10X20)
-        .text_color(Color::White)
-        .background_color(Color::Black)
-        .build();
-
-    let _ = Text::with_text_style("It's working\nWoB!", Point::new(90, 40), style, text_style)
-        .draw(&mut display);
 
     // Demonstrating how to use the partial refresh feature of the screen.
     // Real animations can be used.
@@ -199,36 +155,18 @@ fn main() {
         .unwrap();
     epd_driver.clear_frame(&mut driver, &mut delay).unwrap();
 
-    // a moving `Hello World!`
-    let limit = 10;
-    for i in 0..limit {
-        draw_text(&mut display, "  Hello World! ", 5 + i * 12, 50);
+    let mut line_index: i32 = 0;
 
-        epd_driver
-            .update_and_display_frame(&mut driver, display.buffer(), &mut delay)
-            .expect("display frame new graphics");
-        Ets::delay_ms(1000);
+    let message = ["Never", "Gonna", "Give", "You", "Up", "Never", "Gonna", "Let", "You", "Down", "Never", "Gonna", "Run", "Around", "You", "And", "Desert", "You"];
+    for word in message {
+        (line_index, epd_driver, driver) = append_log(word, line_index, &mut display, epd_driver, driver, delay);
     }
-
-    // Show a spinning bar without any delay between frames. Shows how «fast»
-    // the screen can refresh for this kind of change (small single character)
-    display.clear(Color::White).ok();
-    epd_driver
-        .update_and_display_frame(&mut driver, display.buffer(), &mut delay)
-        .unwrap();
-
-    let spinner = ["|", "/", "-", "\\"];
-    for i in 0..10 {
-        display.clear(Color::White).ok();
-        draw_text(&mut display, spinner[i % spinner.len()], 10, 100);
-        epd_driver
-            .update_and_display_frame(&mut driver, display.buffer(), &mut delay)
-            .unwrap();
-    }
-
-    println!("Finished tests - going to sleep");
-    epd_driver.sleep(&mut driver, &mut delay).expect("putting display driver to sleep");
+    
+    (line_index, epd_driver, driver) = append_log("Finished tests - going to sleep", line_index, &mut display, epd_driver, driver, delay);
+    led.set_pixel(rgb_led::RGB8::new(0, 50, 0)).expect("set the led to green");
+    
     Ets::delay_ms(2000);
+    led.set_pixel(rgb_led::RGB8::new(0, 0, 0)).expect("set the led to red");
     println!("sysloop");
     let sysloop = EspSystemEventLoop::take().expect("initialize the sysloop");
     // let sysloop = match EspSystemEventLoop::take(){
@@ -237,32 +175,56 @@ fn main() {
     // };
 
     Ets::delay_ms(2000);
-    println!("led change");
-    let mut led = rgb_led::WS2812RMT::new(peripherals.pins.gpio8, peripherals.rmt.channel0).unwrap();
+    
     led.set_pixel(rgb_led::RGB8::new(50, 5, 5)).expect("set the led to red");
 
-    Ets::delay_ms(2000);
-    println!("load app config");
-    let app_config = config::CONFIG;
-    println!("SSID: {}, PSK: {}", app_config.wifi_ssid, app_config.wifi_psk);
-    Ets::delay_ms(2000);
-    println!("initialize wifi");
-    let _wifi = wifi::wifi(
-        app_config.wifi_ssid,
-        app_config.wifi_psk,
-        peripherals.modem,
-        sysloop,
-    ).expect("failed to connect");
-    Ets::delay_ms(2000);
-    println!("initialize client");
-    let mut client = create_client().unwrap();
-    Ets::delay_ms(2000);
-    println!("post request");
-    post_test(&mut client, "https://rustembedded.requestcatcher.com/");
-    Ets::delay_ms(2000);
-    println!("done");
-    Ets::delay_ms(2000);
+    // Ets::delay_ms(2000);
+    // println!("load app config");
+    // let app_config = config::CONFIG;
+    // println!("SSID: {}, PSK: {}", app_config.wifi_ssid, app_config.wifi_psk);
+    // Ets::delay_ms(2000);
+    // println!("initialize wifi");
+    // let _wifi = wifi::wifi(
+    //     app_config.wifi_ssid,
+    //     app_config.wifi_psk,
+    //     peripherals.modem,
+    //     sysloop,
+    // ).expect("failed to connect");
+    // Ets::delay_ms(2000);
+    // println!("initialize client");
+    // let mut client = create_client().unwrap();
+    // Ets::delay_ms(2000);
+    // println!("post request");
+    // post_test(&mut client, "https://rustembedded.requestcatcher.com/");
+    // Ets::delay_ms(2000);
+    // println!("done");
+    // Ets::delay_ms(2000);
+    epd_driver.sleep(&mut driver, &mut delay).expect("putting display driver to sleep");
 }
+
+fn append_log(new_message: &str, mut line_index: i32, mut display: &mut Display2in13, mut epd_driver: EpdDriver, mut driver: SPI, mut delay:Delay) -> (i32, EpdDriver, SPI) {
+    if line_index == 0 {
+        // clear the screen, gently?
+        display.clear(Color::Black).ok();
+    }
+    let input_length = new_message.len();
+    let num_spaces = 41 - input_length;
+    let whitespace = " ";
+
+    let new_message_with_whitespace = new_message.to_owned() + whitespace.repeat(num_spaces).as_str();
+
+    // do a partial screen refresh of a single line of code
+    draw_text(&mut display, new_message_with_whitespace.as_str(), 5, 10 + (line_index * 10));
+    line_index = line_index + 1;
+    epd_driver
+        .update_and_display_frame(&mut driver, display.buffer(), &mut delay)
+        .expect("display frame new graphics");
+    if line_index == 10 {
+        line_index = 0;
+    }
+    (line_index, epd_driver, driver)
+} 
+
 fn draw_text(display: &mut Display2in13, text: &str, x: i32, y: i32) {
     let style = MonoTextStyleBuilder::new()
         .font(&embedded_graphics::mono_font::ascii::FONT_6X10)
