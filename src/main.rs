@@ -54,6 +54,7 @@ use embedded_svc::http::Method;
 mod rgb_led;
 
 use esp_idf_sys as _;
+use crate::rgb_led::WS2812RMT;
 
 mod wifi;
 mod config;
@@ -105,8 +106,14 @@ fn main() {
             return;
         }
     };
-    let mut led = rgb_led::WS2812RMT::new(peripherals.pins.gpio8, peripherals.rmt.channel0).unwrap();
-    led.set_pixel(rgb_led::RGB8::new(20, 20, 0)).expect("set the led to yellow");
+
+    let mut led = rgb_led::WS2812RMT::new(
+        peripherals.pins.gpio8,
+        peripherals.rmt.channel0)
+        .unwrap();
+
+    println!("log 0010 setting the LED red");
+    led.set_pixel(rgb_led::RGB8::new(220, 20, 0)).expect("set the led to yellow");
     let spi_p = peripherals.spi2;
     let sclk = peripherals.pins.gpio20; // SCK
     let sdo = peripherals.pins.gpio18; // MOSI
@@ -119,6 +126,8 @@ fn main() {
         .expect("initialize gpio5 as an output pin"); // D/C
     let rst = PinDriver::output(peripherals.pins.gpio6)
         .expect("initialize gpio6 as an output pin"); // RST
+    println!("log 0020 setting the LED yellow");
+    led.set_pixel(rgb_led::RGB8::new(20, 20, 0)).expect("set the led to yellow");
     let bus_config = SpiDriverConfig::new();
     let baudrate = Hertz(10_000_000);
     let driver_config = spi::config::Config::new()
@@ -132,9 +141,12 @@ fn main() {
         &bus_config,
         &driver_config
     ).expect("have created the spi driver");
+    println!("log 0030 setting the LED green");
+    led.set_pixel(rgb_led::RGB8::new(20, 50, 0)).expect("set the led to yellow");
 
     let mut delay = Delay{};
 
+    println!("log 0040 getting the driver");
     let mut epd_driver = Epd2in13::new(
         &mut driver,
         cs,
@@ -144,9 +156,12 @@ fn main() {
         &mut delay,
         None
     ).unwrap();
+    println!("log 0050 setting a default");
     let mut display = Display2in13::default();
 
+    println!("log 0060 setting a rotation");
     display.set_rotation(DisplayRotation::Rotate270);
+    println!("log 0070 setting an aim");
 
     // Demonstrating how to use the partial refresh feature of the screen.
     // Real animations can be used.
